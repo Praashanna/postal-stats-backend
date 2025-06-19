@@ -115,8 +115,6 @@ curl -H "Authorization: Bearer your_jwt_token" \
 - **GET** `/api/stats/server/{id}/bounces` - Get bounce data
 - **GET** `/api/export/server/{id}/bounces` - Export bounce data as CSV
 
-For complete API documentation, see [POSTAL_SERVER_ROUTES.md](POSTAL_SERVER_ROUTES.md)
-
 ## 🔧 CLI Tools
 
 The backend includes powerful command-line tools for management:
