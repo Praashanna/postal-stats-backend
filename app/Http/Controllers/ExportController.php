@@ -74,6 +74,40 @@ class ExportController extends Controller
         }
     }
 
+    public function bouncesByErrorType(Request $request, PostalServer $postalServer)
+    {
+        try {
+            if (!$postalServer->is_active) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Server is not active'
+                ], 422);
+            }
+
+            $validated = $request->validate([
+                'error_type' => 'required|string|max:255',
+                'period' => 'nullable|string|in:1d,7d,14d,30d,today,yesterday',
+            ]);
+
+            $bounceData = $this->postalService->getBounceAddressesByErrorType($postalServer, $validated);
+            $csvContent = $this->generateBounceErrorTypeCSV($bounceData);
+            $safeErrorType = preg_replace('/[^A-Za-z0-9_.-]+/', '_', trim($validated['error_type']));
+            $period = $validated['period'] ?? '30d';
+            $filename = "bounces_{$postalServer->name}_{$safeErrorType}_{$period}.csv";
+
+            return response($csvContent)
+                ->header('Content-Type', 'text/csv')
+                ->header('Content-Disposition', 'attachment; filename="' . $filename . '"')
+                ->header('Cache-Control', 'no-cache, no-store, must-revalidate')
+                ->header('Pragma', 'no-cache')
+                ->header('Expires', '0');
+        } catch (ValidationException $e) {
+            return $this->validationErrorResponse($e->errors(), 'Validation failed');
+        } catch (\Exception $e) {
+            return $this->productionSafeErrorResponse($e, 'Failed to export bounce addresses by error type', 500);
+        }
+    }
+
     private function generateBounceCSV(array $bounceData): string
     {
         $csv = "To Address,From Address,Subject,Date\n";
@@ -88,6 +122,27 @@ class ExportController extends Controller
             );
         }
         
+        return $csv;
+    }
+
+    private function generateBounceErrorTypeCSV(array $bounceData): string
+    {
+        $csv = "Address,From Address,Subject,Status,Error Type,Delivery Code,Delivery Output,Delivered At\n";
+
+        foreach ($bounceData as $bounce) {
+            $csv .= sprintf(
+                '"%s","%s","%s","%s","%s","%s","%s","%s"' . "\n",
+                $this->escapeCsvField($bounce->address ?? ''),
+                $this->escapeCsvField($bounce->from_address ?? ''),
+                $this->escapeCsvField($bounce->subject ?? ''),
+                $this->escapeCsvField($bounce->status ?? ''),
+                $this->escapeCsvField($bounce->error_type ?? ''),
+                $this->escapeCsvField((string) ($bounce->delivery_code ?? '')),
+                $this->escapeCsvField($bounce->delivery_output ?? ''),
+                $bounce->delivered_at ?? ''
+            );
+        }
+
         return $csv;
     }
 

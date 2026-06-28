@@ -2,57 +2,82 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Casts\Attribute;
-use Illuminate\Support\Facades\Crypt;
 
 class PostalServer extends Model
 {
-    use HasFactory;
-    protected $fillable = [
-        'name',
-        'host', 
+    protected $connection = 'postal_main';
+
+    protected $table = 'servers';
+
+    public $timestamps = false;
+
+    protected $appends = [
+        'host',
         'port',
         'database',
         'username',
-        'password',
-        'api_key',
-        'api_url',
         'is_active',
-        'additional_config'
     ];
 
-    protected $casts = [
-        'is_active' => 'boolean',
-        'additional_config' => 'array',
-        'password' => 'encrypted',
-        'api_key' => 'encrypted'
-    ];
+    protected static function booted(): void
+    {
+        static::addGlobalScope('not_deleted', function ($builder) {
+            $builder->whereNull('deleted_at');
+        });
+    }
 
-    protected $hidden = [
-        'password',
-        'api_key'
-    ];
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(PostalOrganization::class, 'organization_id');
+    }
 
     /**
      * Get the database connection configuration for this postal server
      */
     public function getConnectionConfig(): array
     {
+        $messageDb = $this->getMessageDatabaseConfig();
+
         return [
-            'driver' => 'mysql',
-            'host' => $this->host,
-            'port' => $this->port,
-            'database' => $this->database,
-            'username' => $this->username,
-            'password' => $this->password,
+            'driver' => 'mariadb',
+            'host' => $messageDb['host'],
+            'port' => $messageDb['port'],
+            'database' => $this->getMessageDatabaseName(),
+            'username' => $messageDb['username'],
+            'password' => $messageDb['password'],
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
             'prefix' => '',
             'strict' => true,
             'engine' => null,
         ];
+    }
+
+    public function getHostAttribute(): ?string
+    {
+        return $this->getMessageDatabaseConfigValue('host');
+    }
+
+    public function getPortAttribute(): string
+    {
+        return (string) $this->getMessageDatabaseConfigValue('port', '3306');
+    }
+
+    public function getDatabaseAttribute(): ?string
+    {
+        return $this->getMessageDatabaseName();
+    }
+
+    public function getUsernameAttribute(): ?string
+    {
+        return $this->getMessageDatabaseConfigValue('username');
+    }
+
+    public function getIsActiveAttribute(): bool
+    {
+        return $this->deleted_at === null && $this->suspended_at === null;
     }
 
     /**
@@ -64,5 +89,36 @@ class PostalServer extends Model
             throw new \InvalidArgumentException('Cannot generate connection name for postal server without an ID');
         }
         return 'postal_' . $this->id;
+    }
+
+    private function getMessageDatabaseName(): ?string
+    {
+        $prefix = $this->getMessageDatabaseConfigValue('prefix');
+
+        return $prefix ? "{$prefix}-server-{$this->id}" : null;
+    }
+
+    private function getMessageDatabaseConfig(): array
+    {
+        $config = [
+            'host' => $this->getMessageDatabaseConfigValue('host'),
+            'port' => $this->getMessageDatabaseConfigValue('port', '3306'),
+            'prefix' => $this->getMessageDatabaseConfigValue('prefix'),
+            'username' => $this->getMessageDatabaseConfigValue('username'),
+            'password' => $this->getMessageDatabaseConfigValue('password'),
+        ];
+
+        foreach (['host', 'prefix', 'username'] as $key) {
+            if ($config[$key] === null || $config[$key] === '') {
+                throw new \RuntimeException("Missing Postal message DB config: {$key}");
+            }
+        }
+
+        return $config;
+    }
+
+    private function getMessageDatabaseConfigValue(string $key, mixed $default = null): mixed
+    {
+        return config("postal.message_db.{$key}", $default);
     }
 }

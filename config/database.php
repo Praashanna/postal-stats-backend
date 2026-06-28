@@ -82,6 +82,21 @@ return [
             ]) : [],
         ],
 
+        'postal_main' => [
+            'driver' => 'mariadb',
+            'host' => env('POSTAL_DB_HOST', '127.0.0.1'),
+            'port' => env('POSTAL_DB_PORT', '3306'),
+            'database' => env('POSTAL_DB_NAME', 'postal'),
+            'username' => env('POSTAL_DB_USER', 'postal'),
+            'password' => env('POSTAL_DB_PASS', ''),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+        ],
+
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),

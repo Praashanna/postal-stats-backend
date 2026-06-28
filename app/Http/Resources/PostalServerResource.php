@@ -16,13 +16,22 @@ class PostalServerResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'uuid' => $this->uuid,
             'name' => $this->name,
+            'permalink' => $this->permalink,
+            'mode' => $this->mode,
             'host' => $this->host,
             'port' => $this->port,
             'username' => $this->username,
             'is_active' => $this->is_active,
             'database' => $this->database,
             'status' => $this->is_active ? 'active' : 'inactive',
+            'organization' => $this->whenLoaded('organization', fn () => [
+                'id' => $this->organization?->id,
+                'uuid' => $this->organization?->uuid,
+                'name' => $this->organization?->name,
+                'permalink' => $this->organization?->permalink,
+            ]),
         ];
     }
 }

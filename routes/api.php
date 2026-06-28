@@ -23,22 +23,22 @@ Route::group(['middleware' => 'auth:api'], function () {
     // Postal Server Management Routes
     Route::group(['prefix' => 'servers'], function () {
         Route::get('/', [PostalServerController::class, 'index']);
-        Route::post('/', [PostalServerController::class, 'store']);
         Route::get('{postalServer}', [PostalServerController::class, 'show']);
-        Route::put('{postalServer}', [PostalServerController::class, 'update']);
-        Route::delete('{postalServer}', [PostalServerController::class, 'destroy']);
         Route::post('{postalServer}/test-connection', [PostalServerController::class, 'testConnection']);
-        Route::patch('{postalServer}/toggle-status', [PostalServerController::class, 'toggleStatus']);
     });
 
     // Statistics Routes
     Route::group(['prefix' => 'stats'], function () {
         Route::group(['prefix' => 'server/{postalServer}'], function () {
             Route::get('/', [StatsController::class, 'server']);
+            Route::get('suppressions', [StatsController::class, 'suppressions']);
+            Route::delete('suppressions', [StatsController::class, 'deleteSuppressions']);
             Route::group(['prefix' => 'bounces'], function () {
                 Route::get('/', [StatsController::class, 'bounces']);
                 Route::get('domain', [StatsController::class, 'bouncesByDomain']);
                 Route::get('email', [StatsController::class, 'bouncesByAddress']);
+                Route::get('error-type', [StatsController::class, 'bouncesByErrorType']);
+                Route::post('error-type/suppressions', [StatsController::class, 'suppressBouncesByErrorType']);
             });
         });
     });
@@ -46,5 +46,6 @@ Route::group(['middleware' => 'auth:api'], function () {
     // Export Routes
     Route::group(['prefix' => 'export'], function () {
         Route::get('server/{postalServer}/bounces', [ExportController::class, 'bounces']);
+        Route::get('server/{postalServer}/bounces/error-type', [ExportController::class, 'bouncesByErrorType']);
     });
 });

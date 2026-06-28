@@ -110,21 +110,21 @@ curl -H "Authorization: Bearer your_jwt_token" \
 ### Key Endpoints
 
 - **GET** `/api/servers` - List all Postal servers
-- **POST** `/api/servers` - Add new Postal server
+- **GET** `/api/servers/{id}` - Show a Postal server
+- **POST** `/api/servers/{id}/test-connection` - Test a Postal server message database connection
 - **GET** `/api/stats/server/{id}` - Get server statistics
+- **GET** `/api/stats/server/{id}/suppressions` - List recipient suppressions with pagination and search
+- **DELETE** `/api/stats/server/{id}/suppressions` - Remove suppressions by scope, domain, preset, or exact address
 - **GET** `/api/stats/server/{id}/bounces` - Get bounce data
 - **GET** `/api/export/server/{id}/bounces` - Export bounce data as CSV
 
 ## 🔧 CLI Tools
 
-The backend includes powerful command-line tools for management:
+The backend includes command-line tools for configuration:
 
 ```bash
-# Add a new Postal server
-php artisan postal:add-server
-
-# Remove a Postal server
-php artisan postal:remove-server
+# Load Postal DB settings from /opt/postal/config/postal.yml
+php artisan postal:load-config
 
 # Create user account
 php artisan create:account
@@ -132,21 +132,16 @@ php artisan create:account
 
 ## ⚙️ Configuration
 
-### Adding Postal Servers
+### Postal Servers
 
-You can add Postal servers via the API or CLI:
+Postal servers are read directly from Postal's `main_db.servers` table. The app does not store or sync servers into its own database.
 
 ```bash
-# Interactive CLI setup
-php artisan postal:add-server
+# Default path: /opt/postal/config/postal.yml
+php artisan postal:load-config
 
-# Or specify parameters
-php artisan postal:add-server \
-  --name="Main Server" \
-  --host="localhost" \
-  --database="postal" \
-  --username="postal_user" \
-  --password="secure_password"
+# Custom path
+php artisan postal:load-config /path/to/postal.yml
 ```
 
 ### Environment Variables

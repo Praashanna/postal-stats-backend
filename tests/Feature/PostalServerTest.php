@@ -8,6 +8,7 @@ use Tests\TestCase;
 use App\Models\User;
 use App\Models\PostalServer;
 use App\Services\PostalService;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class PostalServerTest extends TestCase
 {
@@ -149,5 +150,112 @@ class PostalServerTest extends TestCase
             $response = $this->json($method, $url, $data);
             $response->assertStatus(401);
         }
+    }
+
+    public function test_can_list_bounces_by_error_type()
+    {
+        $this->actingAs($this->user, 'api');
+
+        $server = PostalServer::factory()->create(['is_active' => true]);
+        $paginator = new LengthAwarePaginator(
+            collect([
+                [
+                    'error_type' => '550 5.1.1',
+                    'bounce_count' => 12,
+                    'unique_messages' => 10,
+                    'last_delivery' => '2026-06-25 12:00:00',
+                ],
+            ]),
+            1,
+            15,
+            1
+        );
+
+        app(PostalService::class)
+            ->shouldReceive('getBouncesByErrorType')
+            ->once()
+            ->andReturn($paginator);
+
+        $response = $this->getJson("/api/stats/server/{$server->id}/bounces/error-type");
+
+        $response->assertStatus(200)
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('data.data.0.error_type', '550 5.1.1')
+            ->assertJsonPath('data.data.0.bounce_count', 12)
+            ->assertJsonStructure([
+                'data' => [
+                    'data' => [
+                        '*' => [
+                            'error_type',
+                            'bounce_count',
+                            'unique_messages',
+                            'last_delivery',
+                        ],
+                    ],
+                    'pagination',
+                ],
+            ]);
+    }
+
+    public function test_can_export_bounce_addresses_by_error_type()
+    {
+        $this->actingAs($this->user, 'api');
+
+        $server = PostalServer::factory()->create(['is_active' => true]);
+
+        app(PostalService::class)
+            ->shouldReceive('getBounceAddressesByErrorType')
+            ->once()
+            ->andReturn([
+                (object) [
+                    'address' => 'bad@example.com',
+                    'from_address' => 'sender@example.com',
+                    'subject' => 'Hello',
+                    'status' => 'HardFail',
+                    'error_type' => '550 5.1.1',
+                    'delivery_code' => 550,
+                    'delivery_output' => '550-5.1.1 User unknown',
+                    'delivered_at' => '2026-06-25 12:00:00',
+                ],
+            ]);
+
+        $response = $this->getJson("/api/export/server/{$server->id}/bounces/error-type?error_type=550%205.1.1");
+
+        $response->assertStatus(200)
+            ->assertHeader('Content-Type', 'text/csv; charset=UTF-8')
+            ->assertSee('Address,From Address,Subject,Status,Error Type,Delivery Code,Delivery Output,Delivered At', false)
+            ->assertSee('bad@example.com', false)
+            ->assertSee('550-5.1.1 User unknown', false);
+    }
+
+    public function test_can_suppress_bounce_addresses_by_error_type()
+    {
+        $this->actingAs($this->user, 'api');
+
+        $server = PostalServer::factory()->create(['is_active' => true]);
+
+        app(PostalService::class)
+            ->shouldReceive('suppressBounceAddressesByErrorType')
+            ->once()
+            ->andReturn([
+                'error_type' => '550 5.1.1',
+                'duration' => '7d',
+                'matched_addresses' => 2,
+                'inserted' => 1,
+                'updated' => 1,
+                'suppressed' => 2,
+                'keep_until' => '2026-07-02 12:00:00',
+                'keep_until_timestamp' => 1782993600.0,
+            ]);
+
+        $response = $this->postJson("/api/stats/server/{$server->id}/bounces/error-type/suppressions", [
+            'error_type' => '550-5.1.1',
+            'duration' => '7d',
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('data.error_type', '550 5.1.1')
+            ->assertJsonPath('data.suppressed', 2);
     }
 }
